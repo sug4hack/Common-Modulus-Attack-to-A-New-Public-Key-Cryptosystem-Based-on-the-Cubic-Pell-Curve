@@ -1,5 +1,3 @@
-from sage.all import *
-
 class CubicPellCurve:
     def __init__(self, N, a):
         self.N = N
@@ -122,39 +120,32 @@ zC = C.z
 pr = p**r
 Zp = Zmod(pr)
 
-# Definisikan variabel dan polinomial f(x) mod p
 R = PolynomialRing(Zp, 'x')
 x = R.gen()
 
 f = xC**3 + x * yC**3 + x**2 * zC**3 - 3 * x * xC * yC * zC - 1
 
-# Temukan solusi x mod p dari f(x) ≡ 0 mod p
 sols_mod_p = [r for r in Zp if f(r) == 0]
 
-print("Solusi x mod p:", sols_mod_p)
+print("Solution x mod p:", sols_mod_p)
 x1 = sols_mod_p[1]
 x2 = sols_mod_p[0]  
   
-# Parameter
 qs = q**s
 Zq = Zmod(q)
 Zqs = Zmod(qs)
 
-# Bangun ulang polinomial di ZZ[y] (bukan di Zmod(q))
 R = PolynomialRing(ZZ, 'y')
 y = R.gen()
 f_y_ZZ = xC**3 + y * yC**3 + y**2 * zC**3 - 3 * y * xC * yC * zC - 1
 
-# Reduksi f_y mod q untuk menemukan solusi awal y mod q
 R_q = PolynomialRing(Zq, 'y')
 y_q = R_q.gen()
 f_y_modq = f_y_ZZ.change_ring(Zq)
 
-# Cari akar-akar mod q
 sols_y_mod_q = [r for r in Zq if f_y_modq(r) == 0]
-print("Solusi y mod q:", sols_y_mod_q)
+print("Solution y mod q:", sols_y_mod_q)
 
-# Fungsi hensel_lift versi stabil (sudah kamu punya, tetap pakai itu)
 def hensel_lift(f, r0, p, n):
     RZ = f.parent()
     fZ = f
@@ -166,7 +157,7 @@ def hensel_lift(f, r0, p, n):
     if f_modp(r0) != 0:
         raise ValueError(f"f({r0}) ≠ 0 mod {p}")
     if df_modp(r0) == 0:
-        raise ValueError(f"f'({r0}) ≡ 0 mod {p}, tidak dapat diangkat.")
+        raise ValueError(f"f'({r0}) ≡ 0 mod {p}, can't lifted.")
 
     r = Integer(r0)
     modulus = p
@@ -181,7 +172,7 @@ def hensel_lift(f, r0, p, n):
         den_mod = Rmod(den)
 
         if not den_mod.is_unit():
-            raise ValueError(f"f'({r}) bukan unit mod {modulus}")
+            raise ValueError(f"f'({r}) not unit mod {modulus}")
 
         correction = Rmod(num) * den_mod.inverse_of_unit()
         r = (r - correction).lift() % modulus
@@ -198,43 +189,37 @@ y2_lifted = hensel_lift(f_y_ZZ, y2, q, s)
 print("y1 lifted to q^s:", y1_lifted)
 print("y2 lifted to q^s:", y2_lifted)
 
-# Nilai hasil lifting Hensel sebelumnya
 ap1 = Integer(x1)
 ap2 = Integer(x2)
 aq1 = Integer(y1_lifted)
 aq2 = Integer(y2_lifted)
 
-# CRT untuk kombinasi (ap1, aq1), (ap2, aq2), (ap1, aq2), (ap2, aq1)
+# CRT
 a1 = crt(ap1, aq1, p**r, q**s)
 a2 = crt(ap2, aq2, p**r, q**s)
 a3 = crt(ap1, aq2, p**r, q**s)
 a4 = crt(ap2, aq1, p**r, q**s)
 
-# Output hasil
 print("a1 =", a1)
 print("a2 =", a2)
 print("a3 =", a3)
 print("a4 =", a4)
 
-#Curve point untuk a_i
 curve_a1 = CubicPellCurve(N, a1)
 curve_a2 = CubicPellCurve(N, a2)
 curve_a3 = CubicPellCurve(N, a3)
 curve_a4 = CubicPellCurve(N, a4)
 
-# Ciphertext C untuk curve_ai
 C_a1 = curve_a1.point(xC, yC, zC)
 C_a2 = curve_a2.point(xC, yC, zC)
 C_a3 = curve_a3.point(xC, yC, zC)
 C_a4 = curve_a4.point(xC, yC, zC)
 Ci = [C_a1, C_a2, C_a3, C_a4]
 
-# Fungsi untuk mengecek apakah a adalah cubic residue modulo n
 def is_cubic_residue(a, n):
     return power_mod(a, (n - 1) // 3, n) == 1
 
-# Fungsi untuk memilih D_i berdasarkan apakah a_i cubic residue modulo p dan q
-def pilih_Di(ai, p, q, d1, d2, d3, d4):
+def choose_Di(ai, p, q, d1, d2, d3, d4):
     ai_mod_p = ai % p
     ai_mod_q = ai % q
 
@@ -252,11 +237,11 @@ def pilih_Di(ai, p, q, d1, d2, d3, d4):
 
 
 a_list = [a1, a2, a3, a4]
-selected_D = [pilih_Di(ai, p, q, d1, d2, d3, d4) for ai in a_list]
+selected_D = [choose_Di(ai, p, q, d1, d2, d3, d4) for ai in a_list]
 print("Selected D values:", selected_D)
 
 for i in range(4):
-    print(f"hasil dekripsi {i+1}:", selected_D[i]*Ci[i])
+    print(f"decryption result {i+1}:", selected_D[i]*Ci[i])
 
 
 
