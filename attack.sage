@@ -1,13 +1,9 @@
-###############################
-# CLASS DEFINITIONS
-###############################
-
 class CubicPellCurve:
     def __init__(self, N, a):
         self.N = N
         self.ZN = Zmod(N)
         self.a = self.ZN(a)
-    
+
     def __repr__(self):
         return f"CubicPellCurve over Zmod({self.N}) defined by x^3 + {self.a}*y^3 + {self.a^2}*z^3 - 3*{self.a}*x*y*z = 1"
 
@@ -29,7 +25,6 @@ class CubicPellPoint:
         self.x = x
         self.y = y
         self.z = z
-        assert isinstance(curve, CubicPellCurve)
 
     def __repr__(self):
         return f"({self.x} : {self.y} : {self.z})"
@@ -76,9 +71,7 @@ class CubicPellPoint:
                 R = R + Q
         return R
 
-###############################
-# FUNGSI: Recovery Parameter a
-###############################
+
 def recover_a_fast(xC, yC, zC, N):
     ZN = Zmod(N)
     x, y, z = ZN(xC), ZN(yC), ZN(zC)
@@ -88,72 +81,53 @@ def recover_a_fast(xC, yC, zC, N):
     C = x**3 - 1
 
     disc = B**2 - 4 * A * C
-    try:
-        sqrt_disc = disc.sqrt()
-    except ValueError:
-        raise ValueError("There is no square root of the discriminant mod N")
-
+    sqrt_disc = disc.sqrt()
     inv_2A = (2 * A).inverse_of_unit()
     a1 = (-B + sqrt_disc) * inv_2A
     a2 = (-B - sqrt_disc) * inv_2A
 
     return a1, a2
 
-###############################
-# FUNGSI: Identifikasi kandidat a yang benar
-###############################
-def identify_correct_a(C, a_candidates, N):
-    for a in a_candidates:
-        curve_candidate = CubicPellCurve(N, a)
-        if curve_candidate.is_on_curve(C):
-            return a
-    return None
 
-###############################
-# COMMON MODULUS ATTACK DEMO
-###############################
-
-# Parameter sistem
+# Parameters
 N = 405601968528411801552349
 a_actual = 402129345655132093067351
 curve = CubicPellCurve(N, a_actual)
 
-# Titik pesan P
 P = curve.point(
     94727413669590175405397,
     400429216716868987768230,
     0
 )
 
-# Dua ciphertext dengan eksponen berbeda
 e1 = 190681261905711342654691
-e2 =  41920150622089930848871
+e2 = 41920150622089930848871
 
 C1 = e1 * P
 C2 = e2 * P
-print(curve.is_on_curve(C2))
 
-# Serangan dimulai — Penyerang tidak tahu a
-# Langkah 1: Recover kandidat a dari C1
+# Step 1: Get 4 candidate a values
 a1, a2 = recover_a_fast(C1.x, C1.y, C1.z, N)
-print("Kandidat a:", a1, a2)
+a3, a4 = recover_a_fast(C2.x, C2.y, C2.z, N)
+a_candidates = [a1, a2, a3, a4]
 
-# Langkah 2: Identifikasi a yang sesuai
-a_found = identify_correct_a(C2, [a1, a2], N)
-print("a yang berhasil direkonstruksi:", a_found)
+# Step 2 & 3: Check which candidate makes both C1 and C2 valid points
+valid_curve = None
+for a in a_candidates:
+    candidate_curve = CubicPellCurve(N, a)
+    if candidate_curve.is_on_curve(C1) and candidate_curve.is_on_curve(C2):
+        valid_curve = candidate_curve
+        break
 
-# Langkah 3: Buat ulang kurva berdasarkan a yang ditemukan
-if a_found is None:
-    raise RuntimeError("Gagal menemukan nilai a yang valid dari ciphertext.")
-else:
-    curve_recovered = CubicPellCurve(N, a_found)
+# Step 4: Reconstruct ciphertexts on valid curve
+C1_fixed = CubicPellPoint(valid_curve, C1.x, C1.y, C1.z)
+C2_fixed = CubicPellPoint(valid_curve, C2.x, C2.y, C2.z)
 
-# Langkah 4: Gunakan Extended Euclidean Algorithm pada (e1, e2)
-# x*e1 + y*e2 = 1 → x dan y diketahui (hasil luar dari egcd)
-x = -1237081083026857444837
-y =  5627083359451083671408
+# Step 5: Solve x*e1 + y*e2 = 1 using extended Euclidean algorithm
+g, x, y = xgcd(e1, e2)
+assert g == 1
 
-
-# Langkah 5: Pulihkan P dari C1 dan C2
-P_recovered = x * C1 + y * C2
-print("Apakah P berhasil dipulihkan?", P_recovered == P)
+# Step 6: Recover the original message point
+P_recovered = x * C1_fixed + y * C2_fixed
+print(P_recovered == P)
+print(P_recovered)
