@@ -1,3 +1,6 @@
+from sage.all import *
+
+
 class CubicPellCurve:
     def __init__(self, N, a):
         self.N = N
@@ -72,25 +75,59 @@ class CubicPellPoint:
         return R
 
 
-def recover_a_fast(xC, yC, zC, N):
+def _ABC_from_point(C, N):
     ZN = Zmod(N)
-    x, y, z = ZN(xC), ZN(yC), ZN(zC)
-
+    x, y, z = ZN(C.x), ZN(C.y), ZN(C.z)
     A = z**3
-    B = y**3 - 3 * x * y * z
-    C = x**3 - 1
+    B = y**3 - 3*x*y*z
+    Cc = x**3 - 1
+    return Integer(A), Integer(B), Integer(Cc)
 
-    disc = B**2 - 4 * A * C
-    sqrt_disc = disc.sqrt()
-    inv_2A = (2 * A).inverse_of_unit()
-    a1 = (-B + sqrt_disc) * inv_2A
-    a2 = (-B - sqrt_disc) * inv_2A
+def _solve_linear_congruence(a, b, n):
+    g = gcd(a, n)
+    if b % g != 0:
+        return []
+    a1, b1, n1 = a // g, b // g, n // g
+    x0 = (Integer(b1) * inverse_mod(Integer(a1), Integer(n1))) % n1
+    return [(x0 + k*n1) % n for k in range(g)]
 
-    return a1, a2
+def recover_a(C1, C2, N):
+    print(f"C1: {C1}, C2: {C2}, N: {N}")
+    A1, B1, C1c = _ABC_from_point(C1, N)
+    A2, B2, C2c = _ABC_from_point(C2, N)
+    print(f"A1: {A1}, B1: {B1}, C1: {C1c}")
+    print(f"A2: {A2}, B2: {B2}, C2: {C2c}") 
+
+    D = (A2*B1 - A1*B2) % N
+    K = (A2*C1c - A1*C2c) % N
+     
+    print(f"D: {D}, K: {K}")
+
+    sols = _solve_linear_congruence(int(D), int((-K) % N), int(N))
+    print(f"Initial sols: {sols}")
+
+    if not sols:
+        D2 = (C2c*A1 - C1c*A2) % N
+        K2 = (C2c*B1 - C1c*B2) % N
+        sols = []
+        if K2 % N == 0:
+            sols.append(0)
+        try:
+            invD2 = inverse_mod(Integer(D2), Integer(N))
+            sols.append(int((-K2 * invD2) % N))
+        except Exception:
+            pass
+
+    return sols
+
 
 
 # Parameters
-N = 405601968528411801552349
+p = 922039
+q = 760531
+r = 1
+s = 3
+N = p**r * q**s
 a_actual = 402129345655132093067351
 curve = CubicPellCurve(N, a_actual)
 
@@ -107,10 +144,7 @@ C1 = e1 * P
 C2 = e2 * P
 
 # Step 1: Get 4 candidate a values
-a1, a2 = recover_a_fast(C1.x, C1.y, C1.z, N)
-a3, a4 = recover_a_fast(C2.x, C2.y, C2.z, N)
-a_candidates = [a1, a2, a3, a4]
-
+a_candidates = recover_a(C1, C2, N)
 # Step 2 & 3: Check which candidate makes both C1 and C2 valid points
 valid_curve = None
 for a in a_candidates:
@@ -129,5 +163,19 @@ assert g == 1
 
 # Step 6: Recover the original message point
 P_recovered = x * C1_fixed + y * C2_fixed
-print(P_recovered == P)
-print(P_recovered)
+
+#print all parameters and results
+print(f"p: {p}")
+print(f"q: {q}")
+print(f"N: {N}")
+print(f"a_actual: {a_actual}")
+print(f"e1: {e1}")
+print(f"e2: {e2}")
+print(f"C1: {C1}")
+print(f"C2: {C2}")
+print(f"x: {x}")
+print(f"y: {y}")
+print(f"Recovered a candidates: {a_candidates}")
+print(f"Recovered Point P: {P_recovered}")
+#is P_recovered equal to P?
+print(f"Is recovered P equal to original P? {P_recovered == P}")
